@@ -3,6 +3,28 @@ import datetime as dt
 import pandas as pd
 import numpy as np
 
+def check_negative_balance(series):
+    if (series <= 0).any():
+        # Find the first index where the value is 0 or negative
+        first_zero_or_negative = series[series <= 0].index[0]
+
+        # Set all values from that index onward to 0
+        series[first_zero_or_negative:] = 0
+
+        return False
+    
+    # No negative Balance:
+    return True
+
+def get_net_balance(balance,reb_cost:float):
+    if balance > 0:
+        net_balance = round(balance * (1-reb_cost),2)
+    else:
+        net_balance = 0
+    
+    return net_balance
+
+
 def port_balance_calc(portfolio_weights: pd.Series, balance: float, date_filtered_returns: pd.DataFrame,kd:float) -> pd.Series:
     """
     Simulates a portfolio position balance variation over time.
@@ -31,8 +53,11 @@ def port_balance_calc(portfolio_weights: pd.Series, balance: float, date_filtere
             # Calculate the total balance over time
             balance_over_time = position_NAV.sum(axis=1)
 
+            # Check for negative balance:
+            neg_check = check_negative_balance(series=balance_over_time)
+
             # Apply cost of leverage to balance over time:
-            if kd > 0:
+            if kd > 0 and neg_check:
                 balance_net_pct = balance_over_time.pct_change() - kd
                 log_net_pct = np.log(1+balance_net_pct)
                 balance_over_time = balance * np.exp(log_net_pct.cumsum()) 
@@ -105,7 +130,7 @@ def get_balance(starting_balance,rebalance_dates,portfolios,end_date,sim_price_d
                                        last_weights=last_weights,annual_kd=annual_kd)
 
         # Apply Transaction costs:
-        net_balance = round(balance * (1-reb_cost),2)
+        net_balance = get_net_balance(balance=balance,reb_cost=reb_cost)
 
         # Balance period calculation:
         balance_df,last_weights = port_balance_calc(portfolio_weights = portfolio_weights, balance=net_balance, 
